@@ -1,0 +1,6 @@
+[submodule "contrib/fastfilter_cpp"]
+	path = contrib/fastfilter_cpp
+	url = https://github.com/FastFilter/fastfilter_cpp
+[submodule "contrib/rpclib"]
+	path = contrib/rpclib
+	url = https://github.com/rpclib/rpclib.git
