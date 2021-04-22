@@ -1,6 +1,5 @@
 file(GLOB EXEC_FILE *.cpp)
 
-
 # BloomFilters
 LIST(APPEND BLOOM_FILTERS_INCLUDE_PATH
         ${CMAKE_SOURCE_DIR}/contrib/fastfilter_cpp/src
@@ -24,5 +23,5 @@ foreach (exe ${EXEC_FILE})
 
     target_include_directories(${name} PRIVATE ${BLOOM_FILTERS_INCLUDE_PATH})
     target_include_directories(${name} PRIVATE ${RPCLIB_INCLUDE_PATH})
-    target_link_libraries(${name} rpc)
+    target_link_libraries(${name} rpc pthread)
 endforeach ()

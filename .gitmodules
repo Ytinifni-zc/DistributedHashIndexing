@@ -4,3 +4,6 @@
 [submodule "contrib/rpclib"]
 	path = contrib/rpclib
 	url = https://github.com/rpclib/rpclib.git
+[submodule "contrib/args-parser"]
+	path = contrib/args-parser
+	url = https://github.com/igormironchik/args-parser.git
