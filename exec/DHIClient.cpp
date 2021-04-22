@@ -3,6 +3,7 @@
 //
 
 #include <iostream>
+#include <numeric>
 
 #include <rpc/client.h>
 #include <args-parser/Args/all.hpp>
@@ -35,10 +36,10 @@ int main(int argc, char *argv[]) {
     using ClientPtr = std::shared_ptr<rpc::client>;
     ClientPtr client = std::make_shared<rpc::client>(server_host, server_port);
     client->call("reset");
+    std::vector<KeyT> keys(vertex_num);
+    std::iota(keys.begin(), keys.end(), 0);
     Stopwatch w;
-    for (auto i = 0ul; i < vertex_num; ++i) {
-        client->call("insert", i);
-    }
+    client->call("bulkInsert", keys);
     client->call("finish");
     std::cout << "Insert " << vertex_num << " keys using: " << w.elapsedMilliseconds() << "ms\n";
 
