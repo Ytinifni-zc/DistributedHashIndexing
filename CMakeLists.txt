@@ -18,6 +18,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/contrib)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/contrib/numactl)
 
 add_subdirectory(contrib)
 add_subdirectory(exec)

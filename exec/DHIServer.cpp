@@ -77,21 +77,19 @@ public:
             clients[0] = std::make_unique<rpc::client>("20.0.1.119", 13333);
             clients[1] = std::make_unique<rpc::client>("20.0.1.121", 13333);
             clients[2] = std::make_unique<rpc::client>("20.0.1.124", 13333);
-            for (auto& c: clients) {
+            for (auto &c: clients) {
                 c->call("reset");
             }
 
             caches.resize(worker_num);
             // Assign each key to different worker
-            auto cache_max_size = vertex_num / worker_num * cache_coefficient;
-            auto cache_elasticity = cache_max_size * elasticity_coefficient;
+            UInt64 cache_max_size = vertex_num / worker_num * cache_coefficient;
+            UInt64 cache_elasticity = cache_max_size * elasticity_coefficient;
             for (auto &fp: caches) {
                 fp = std::make_shared<Cache>(cache_max_size, cache_elasticity);
             }
 
             pools.resize(worker_num);
-            const UInt32 POOL_SIZE{64u << 20}; // 64MB
-            const auto pool_capacity = POOL_SIZE / sizeof(Key); // TODO:
             for (auto &pool : pools) {
                 pool.reserve(pool_capacity);
                 assert(pool.capacity() == pool_capacity);
@@ -114,7 +112,7 @@ public:
                     std::cerr << "DHI is finished. New insertions are forbidden.\n";
                     return false;
                 }
-                [[maybe_unused]]auto[wid, sid] = assignKey(key);
+                auto[wid, sid] = assignKey(key);
                 auto &cache = caches[wid];
                 Value ph;
                 if (!cache->tryGet(key, ph)) {
@@ -124,6 +122,27 @@ public:
                     index++;
                     if (isFull(pool))
                         flushPool(wid, pool);
+                }
+                return true;
+            });
+
+            srv->bind("bulkInsert", [&](const std::vector<Key> &keys) {
+                if (finished) {
+                    std::cerr << "DHI is finished. New insertions are forbidden.\n";
+                    return false;
+                }
+                for (auto key: keys) {
+                    auto[wid, sid] = assignKey(key);
+                    auto &cache = caches[wid];
+                    Value ph;
+                    if (!cache->tryGet(key, ph)) {
+                        cache->insert(key, index);
+                        auto &pool = pools[wid];
+                        pool.emplace_back(key, index, sid);
+                        index++;
+                        if (isFull(pool))
+                            flushPool(wid, pool);
+                    }
                 }
                 return true;
             });
@@ -156,7 +175,7 @@ public:
                 finished = true;
             });
 
-            srv->bind("reset", [&]{
+            srv->bind("reset", [&] {
                 finished = false;
             });
         }
