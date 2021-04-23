@@ -6,15 +6,12 @@
 #include <vector>
 #include <iostream>
 #include <thread>
-#include <algorithm>
-#include <mutex>
 
 #include <rpc/server.h>
 #include <args-parser/Args/all.hpp>
 
 #include <utils/Gang.h>
 
-#include "LRUCache.hpp"
 #include "Common.h"
 
 #define CONTAIN_ATTRIBUTES  __attribute__ ((noinline))
@@ -34,9 +31,6 @@ class DHICoordinatorServer {
 
     GangUtil gu{};
 
-    std::vector<std::unique_ptr<std::mutex>> mutexes;
-
-
 public:
     DHICoordinatorServer(String host_, UInt64 port_, UInt32 worker_id_, UInt32 slot_num_)
             : host(host_), port(port_), worker_id(worker_id_), slot_num(slot_num_) {
@@ -48,14 +42,9 @@ public:
                 map = std::make_shared<Map>();
             }
 
-            gu.thread_num = std::min(gu.thread_num, (int)slot_num);
-
-            mutexes.resize(slot_num);
-            for (auto& m: mutexes)
-                m = std::make_unique<std::mutex>();
-
 #ifdef RPCLIB_DEBUG
             std::cerr << "Create RPC Server (" << host << ":" << port << ")\n";
+            std::cerr << "Create slot maps. size: (" << maps.size() << ")\n";
 #endif
         }
         catch (std::exception &e) {
@@ -83,23 +72,77 @@ public:
                 return true;
             });
 
-            srv->bind("bulkInsert", [&](const InsertionPool &pool) -> void {
-//                gu.submit(pool.size(), [&](auto i) {
-//                    auto &[k, v, sid] = pool[i];
-//                    std::lock_guard<std::mutex> guard(*mutexes[sid]);
+            srv->bind("bulkInsert", [&](InsertionPool &pool) -> void {
+                Stopwatch w;
+                std::vector<UInt64> offs(slot_num);
+                for (auto i = 1u; i < slot_num; ++i) {
+                    InsertPack ip_ph{0, 0, i};
+                    offs[i - 1] = std::lower_bound(pool.begin(), pool.end(), ip_ph,
+                                                   [](const InsertPack &lhs, const InsertPack &rhs) {
+                                                       return std::get<2>(lhs) < std::get<2>(rhs);
+                                                   }) - pool.begin();
+                }
+                offs.back() = pool.size();
+#ifdef RPCLIB_DEBUG
+                std::cout << "[Coordinator] bulkInsert: Slot offsets: {";
+                for (auto &off: offs) {
+                    std::cout << " " << off;
+                }
+                std::cout << " }\n";
+                std::cout << "sample sorted pool: \n";
+                for (auto i = 0u; i < slot_num; ++i) {
+                    std::cout << "  #### " << i << ":";
+                    for (auto j = slot_num; j; --j) {
+                        std::cout << " " << std::get<2>(pool[offs[i] - j]);
+                    }
+                    std::cout << "\n";
+                }
+#endif
+
+                gu.groupSubmit(slot_num, [&](auto i) {
+                    auto b = i? offs[i-1]: 0;
+                    auto e = offs[i];
+                    for (; b < e; ++b) {
+                        auto&[k, v, sid] = pool[b];
+                        assert(sid == i);
+                        MapPtr &map = maps[sid];
+                        if (map->contains(k))
+                            continue;
+                        (*map)[k] = v;
+                    }
+                });
+//                std::vector<std::unique_ptr<std::thread>> threads(slot_num);
+//                for (auto i = 0u; i < slot_num; ++i) {
+//                    std::cout << " ????? " << i << " in " << slot_num << "\n";
+//                    threads[i] = std::make_unique<std::thread>([&]() {
+//                        auto index = i;
+//                        auto b = index? offs[index-1]: 0;
+//                        auto e = offs[index];
+//                        for (; b < e; ++b) {
+//                            auto&[k, v, sid] = pool[b];
+//                            if (sid != index) {
+//                                std::cout << " !!!!! " << index << " vs " << sid << "\n";
+//                                assert(sid == index);
+//                            }
+//                            MapPtr &map = maps[index];
+//                            if (map->contains(k))
+//                                continue;
+//                            (*map)[k] = v;
+//                        }
+//                    });
+//                }
+//                for (auto & th: threads)
+//                    th->join();
+
+//                for (auto &ip: pool) {
+//                    auto&[k, v, sid] = ip;
 //                    MapPtr &map = maps[sid];
 //                    if (map->contains(k))
-//                        return;
+//                        continue;
 //                    (*map)[k] = v;
-//                });
-                for (auto &ip: pool) {
-                    auto&[k, v, sid] = ip;
-                    MapPtr &map = maps[sid];
-                    if (map->contains(k))
-                        continue;
-                    (*map)[k] = v;
-                }
-                std::cerr << "Bulk Inserted (" << pool.size() << ") in Coordinator[" << worker_id << "]\n";
+//                }
+                std::cout << "Bulk Inserted (" << pool.size() << ") in Coordinator[" << worker_id << "]. ["
+                          << w.elapsedMilliseconds() << "ms]\n";
             });
 
             srv->bind("get", [&](Key k, UInt32 sid) -> Value {
@@ -114,7 +157,7 @@ public:
             });
 
             srv->bind("reset", [&]() {
-                for (auto& map: maps) {
+                for (auto &map: maps) {
                     map->clear();
                 }
             });

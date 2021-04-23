@@ -1,6 +1,6 @@
 file(GLOB EXEC_FILE *.cpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 if (COMPILER_GCC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 elseif(COMPILER_CLANG)
@@ -22,6 +22,7 @@ LIST(APPEND BLOOM_FILTERS_INCLUDE_PATH
 # RPCLib
 set(RPCLIB_INCLUDE_PATH "${ClickHouse_SOURCE_DIR}/contrib/rpclib" CACHE STRING "Path of rpclib library")
 #message(STATUS "RPCLIB_INCLUDE_PATH is ${RPCLIB_INCLUDE_PATH}")
+
 
 foreach (exe ${EXEC_FILE})
     get_filename_component(name ${exe} NAME_WE)

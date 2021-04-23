@@ -5,8 +5,12 @@
 #ifndef DISTRIBUTEDHASHINDEXING_COMMON_H
 #define DISTRIBUTEDHASHINDEXING_COMMON_H
 
-#include <utils/Type.h>
 #include <limits>
+
+#include <utils/Type.h>
+#include <utils/StopWatch.h>
+
+#define RPCLIB_DEBUG
 
 using KeyT = UInt64;
 using ValueT = UInt64;
@@ -65,6 +69,5 @@ static inline uint64_t fastrange64(uint64_t word, uint64_t p) {
     return word % p; // fallback
 #endif // __SIZEOF_INT128__
 }
-
 
 #endif //DISTRIBUTEDHASHINDEXING_COMMON_H

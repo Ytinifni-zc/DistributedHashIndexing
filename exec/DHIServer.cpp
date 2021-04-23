@@ -6,6 +6,7 @@
 #include <vector>
 #include <iostream>
 #include <thread>
+#include <parallel/algorithm>
 
 #include <rpc/server.h>
 #include <rpc/client.h>
@@ -13,8 +14,6 @@
 
 #include "LRUCache.hpp"
 #include "Common.h"
-
-//#define RPCLIB_DEBUG
 
 template<typename Key=KeyT, typename Value=ValueT>
 class DHIServer {
@@ -52,17 +51,31 @@ private:
 
     void flushPool(UInt32 worker_id, InsertionPool &pool) {
         // TODO: Maybe finish.
+        Stopwatch w;
         auto &c = clients[worker_id];
+        __gnu_parallel::sort(pool.begin(), pool.end(), [](const InsertPack &lhs, const InsertPack &rhs) {
+            return std::get<2>(lhs) < std::get<2>(rhs);
+        });
+#ifdef RPCLIB_DEBUG
+        std::cout << "[Server] bulkInsert: Pool is sorted.\n";
+#endif
         auto ft = c->async_call("bulkInsert", pool);
         ft.wait();
         pool.clear();
+        std::cout << "Flush Pool(" << worker_id << ") [" << w.elapsedMilliseconds() << "ms]\n";
     }
 
     inline auto assignKey(Key key) {
         auto hash_value = hashKey(key);
-        UInt32 worker_id = fastrange64(hash_value, worker_num);
-        UInt32 slot_id = fastrange64(hash_value, slot_num);
-        slot_id = slot_id % worker_num;
+//        UInt32 worker_id = fastrange64(hash_value, worker_num);
+//        UInt32 slot_id = fastrange64(hash_value, slot_num);
+        UInt32 worker_id = hash_value % worker_num;
+        UInt32 slot_id = hash_value % slot_num;
+        slot_id = slot_id / worker_num;
+        if (slot_id >= slot_num / worker_num) {
+            std::cout << "ASSIGN KEY ERROR: " << hash_value << ", " << worker_id << ", " << (hash_value % slot_num)
+                      << ", " << slot_id << "\n";
+        }
         return std::make_tuple(worker_id, slot_id);
     }
 
@@ -131,6 +144,7 @@ public:
                     std::cerr << "DHI is finished. New insertions are forbidden.\n";
                     return false;
                 }
+                Stopwatch w;
                 for (auto key: keys) {
                     auto[wid, sid] = assignKey(key);
                     auto &cache = caches[wid];
@@ -144,6 +158,7 @@ public:
                             flushPool(wid, pool);
                     }
                 }
+                std::cout << "bulkInsert keys [" << w.elapsedMilliseconds() << "ms]\n";
                 return true;
             });
 
