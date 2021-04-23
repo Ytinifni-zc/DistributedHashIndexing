@@ -83,15 +83,13 @@ public:
 
             caches.resize(worker_num);
             // Assign each key to different worker
-            auto cache_max_size = vertex_num / worker_num * cache_coefficient;
-            auto cache_elasticity = cache_max_size * elasticity_coefficient;
+            UInt64 cache_max_size = vertex_num / worker_num * cache_coefficient;
+            UInt64 cache_elasticity = cache_max_size * elasticity_coefficient;
             for (auto &fp: caches) {
                 fp = std::make_shared<Cache>(cache_max_size, cache_elasticity);
             }
 
             pools.resize(worker_num);
-            const UInt32 POOL_SIZE{64u << 20}; // 64MB
-            const auto pool_capacity = POOL_SIZE / sizeof(Key); // TODO:
             for (auto &pool : pools) {
                 pool.reserve(pool_capacity);
                 assert(pool.capacity() == pool_capacity);

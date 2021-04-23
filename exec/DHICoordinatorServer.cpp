@@ -6,9 +6,13 @@
 #include <vector>
 #include <iostream>
 #include <thread>
+#include <algorithm>
+#include <mutex>
 
 #include <rpc/server.h>
 #include <args-parser/Args/all.hpp>
+
+#include <utils/Gang.h>
 
 #include "LRUCache.hpp"
 #include "Common.h"
@@ -28,6 +32,11 @@ class DHICoordinatorServer {
     using MapPtr = std::shared_ptr<Map>;
     std::vector<MapPtr> maps;
 
+    GangUtil gu{};
+
+    std::vector<std::unique_ptr<std::mutex>> mutexes;
+
+
 public:
     DHICoordinatorServer(String host_, UInt64 port_, UInt32 worker_id_, UInt32 slot_num_)
             : host(host_), port(port_), worker_id(worker_id_), slot_num(slot_num_) {
@@ -38,6 +47,12 @@ public:
             for (auto &map: maps) {
                 map = std::make_shared<Map>();
             }
+
+            gu.thread_num = std::min(gu.thread_num, (int)slot_num);
+
+            mutexes.resize(slot_num);
+            for (auto& m: mutexes)
+                m = std::make_unique<std::mutex>();
 
 #ifdef RPCLIB_DEBUG
             std::cerr << "Create RPC Server (" << host << ":" << port << ")\n";
@@ -69,6 +84,14 @@ public:
             });
 
             srv->bind("bulkInsert", [&](const InsertionPool &pool) -> void {
+//                gu.submit(pool.size(), [&](auto i) {
+//                    auto &[k, v, sid] = pool[i];
+//                    std::lock_guard<std::mutex> guard(*mutexes[sid]);
+//                    MapPtr &map = maps[sid];
+//                    if (map->contains(k))
+//                        return;
+//                    (*map)[k] = v;
+//                });
                 for (auto &ip: pool) {
                     auto&[k, v, sid] = ip;
                     MapPtr &map = maps[sid];

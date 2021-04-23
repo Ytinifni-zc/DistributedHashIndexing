@@ -15,6 +15,9 @@ using SlotID = UInt32;
 using InsertPack = std::tuple<KeyT, ValueT, SlotID>;
 using InsertionPool = std::vector<InsertPack>;
 
+const UInt32 POOL_SIZE{64u << 20}; // 64MB
+const auto pool_capacity = POOL_SIZE / sizeof(KeyT); // TODO:
+
 static const auto ERROR_INDEX = std::numeric_limits<ValueT>::max();
 
 const static UInt64 RETRY_TIME_OUT(10);
