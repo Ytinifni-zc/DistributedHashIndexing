@@ -37,6 +37,7 @@ class DHIServer {
     std::vector<CachePtr> caches;
 
     std::vector<InsertionPool> pools;
+    UInt32 pipeline_level;
 
     UInt64 index{0};
 
@@ -59,8 +60,39 @@ private:
 #ifdef RPCLIB_DEBUG
         std::cout << "[Server] bulkInsert: Pool is sorted.\n";
 #endif
-        auto ft = c->async_call("bulkInsert", pool);
-        ft.wait();
+//        auto ft = c->async_call("bulkInsert", pool);
+//        ft.wait();
+        auto bulkInsert = [&](std::vector<InsertPack> &data, UInt32 pipeline_level_) {
+            // FIXME
+            const size_t NUM = 64;
+            using KBuff = std::array<InsertPack, NUM>;
+            std::vector<KBuff> buffs(pipeline_level_);
+            auto unit_size = NUM * pipeline_level_;
+            auto total_num = data.size();
+            total_num = total_num / unit_size + (total_num % unit_size != 0);
+            for (auto i = 0u; i < total_num; ++i) {
+                for (auto j = 0u; j < pipeline_level_; ++j) {
+                    auto b = i * unit_size + j * NUM;
+                    auto e = b + NUM;
+                    if (e >= data.size()) {
+                        e = data.size();
+                    }
+                    if (e != data.size()) {
+                        auto &buff = buffs[j];
+                        // TODO: optimize
+                        std::copy(data.begin() + b, data.begin() + e, buff.begin());
+                        c->send("bulkInsert", buff);
+                    } else {
+                        std::vector<InsertPack> tail_buff(data.begin() + b, data.end());
+                        c->send("bulkInsert", tail_buff);
+                        break;
+                    }
+
+                }
+            }
+        };
+        bulkInsert(pool, pipeline_level);
+//        c->send("bulkInsert", pool);
         pool.clear();
         std::cout << "Flush Pool(" << worker_id << ") [" << w.elapsedMilliseconds() << "ms]\n";
     }
@@ -80,9 +112,9 @@ private:
     }
 
 public:
-    DHIServer(String host_, UInt64 port_, UInt32 worker_num_, UInt32 slot_num_, UInt64 vertex_num_,
+    DHIServer(String host_, UInt64 port_, UInt32 worker_num_, UInt32 slot_num_, UInt64 vertex_num_, UInt32 pipeline_level_,
               Float64 cache_coefficient = 0.1, Float64 elasticity_coefficient = 0.2)
-            : host(host_), port(port_), worker_num(worker_num_), slot_num(slot_num_), vertex_num(vertex_num_) {
+            : host(host_), port(port_), worker_num(worker_num_), slot_num(slot_num_), vertex_num(vertex_num_), pipeline_level(pipeline_level_) {
         try {
             srv = std::make_unique<rpc::server>(host, port);
             clients.resize(worker_num);
@@ -158,7 +190,7 @@ public:
                             flushPool(wid, pool);
                     }
                 }
-                std::cout << "bulkInsert keys [" << w.elapsedMilliseconds() << "ms]\n";
+//                std::cout << "bulkInsert keys [" << w.elapsedMilliseconds() << "ms]\n";
                 return true;
             });
 
@@ -211,6 +243,7 @@ int main(int argc, char *argv[]) {
     UInt32 worker_num;
     UInt32 slot_num;
     UInt64 vertex_num;
+    UInt32 pipeline_level{40};
     Args::CmdLine cmd(argc, argv);
     {
         Args::Arg host_('h', "host", true, false);
@@ -218,19 +251,22 @@ int main(int argc, char *argv[]) {
         Args::Arg worker_num_('n', "worker_num", true, false);
         Args::Arg slot_num_('s', "slot_num", true, false);
         Args::Arg vertex_num_('v', "vertex_num", true, false);
+        Args::Arg pipeline_level_('l', "pipeline_level", true, false);
         cmd.addArg(host_);
         cmd.addArg(port_);
         cmd.addArg(worker_num_);
         cmd.addArg(slot_num_);
         cmd.addArg(vertex_num_);
+        cmd.addArg(pipeline_level_);
         cmd.parse();
         host = host_.isDefined() ? host_.value() : "0.0.0.0";
         port = std::stoul(port_.isDefined() ? port_.value() : "23333");
         worker_num = std::stoi(worker_num_.isDefined() ? worker_num_.value() : "3");
         slot_num = std::stoi(slot_num_.isDefined() ? slot_num_.value() : "30");
         vertex_num = std::stoi(vertex_num_.isDefined() ? vertex_num_.value() : "50000000");
+        pipeline_level = std::stoul(pipeline_level_.isDefined() ? pipeline_level_.value() : "40");
     }
-    DHIServer server(host, port, worker_num, slot_num, vertex_num);
+    DHIServer server(host, port, worker_num, slot_num, vertex_num, pipeline_level);
     server.registerRPCServices();
     std::cout << "Starting Serving\n";
     return 0;

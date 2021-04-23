@@ -111,38 +111,8 @@ public:
                         (*map)[k] = v;
                     }
                 });
-//                std::vector<std::unique_ptr<std::thread>> threads(slot_num);
-//                for (auto i = 0u; i < slot_num; ++i) {
-//                    std::cout << " ????? " << i << " in " << slot_num << "\n";
-//                    threads[i] = std::make_unique<std::thread>([&]() {
-//                        auto index = i;
-//                        auto b = index? offs[index-1]: 0;
-//                        auto e = offs[index];
-//                        for (; b < e; ++b) {
-//                            auto&[k, v, sid] = pool[b];
-//                            if (sid != index) {
-//                                std::cout << " !!!!! " << index << " vs " << sid << "\n";
-//                                assert(sid == index);
-//                            }
-//                            MapPtr &map = maps[index];
-//                            if (map->contains(k))
-//                                continue;
-//                            (*map)[k] = v;
-//                        }
-//                    });
-//                }
-//                for (auto & th: threads)
-//                    th->join();
-
-//                for (auto &ip: pool) {
-//                    auto&[k, v, sid] = ip;
-//                    MapPtr &map = maps[sid];
-//                    if (map->contains(k))
-//                        continue;
-//                    (*map)[k] = v;
-//                }
-                std::cout << "Bulk Inserted (" << pool.size() << ") in Coordinator[" << worker_id << "]. ["
-                          << w.elapsedMilliseconds() << "ms]\n";
+//                std::cout << "Bulk Inserted (" << pool.size() << ") in Coordinator[" << worker_id << "]. ["
+//                          << w.elapsedMilliseconds() << "ms]\n";
             });
 
             srv->bind("get", [&](Key k, UInt32 sid) -> Value {

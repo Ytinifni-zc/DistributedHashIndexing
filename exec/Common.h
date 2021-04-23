@@ -10,7 +10,7 @@
 #include <utils/Type.h>
 #include <utils/StopWatch.h>
 
-#define RPCLIB_DEBUG
+//#define RPCLIB_DEBUG
 
 using KeyT = UInt64;
 using ValueT = UInt64;
