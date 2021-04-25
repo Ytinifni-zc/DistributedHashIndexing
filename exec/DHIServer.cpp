@@ -62,37 +62,39 @@ private:
 #endif
 //        auto ft = c->async_call("bulkInsert", pool);
 //        ft.wait();
-        auto bulkInsert = [&](std::vector<InsertPack> &data, UInt32 pipeline_level_) {
-            // FIXME
-            const size_t NUM = 64;
-            using KBuff = std::array<InsertPack, NUM>;
-            std::vector<KBuff> buffs(pipeline_level_);
-            auto unit_size = NUM * pipeline_level_;
-            auto total_num = data.size();
-            total_num = total_num / unit_size + (total_num % unit_size != 0);
-            for (auto i = 0u; i < total_num; ++i) {
-                for (auto j = 0u; j < pipeline_level_; ++j) {
-                    auto b = i * unit_size + j * NUM;
-                    auto e = b + NUM;
-                    if (e >= data.size()) {
-                        e = data.size();
-                    }
-                    if (e != data.size()) {
-                        auto &buff = buffs[j];
-                        // TODO: optimize
-                        std::copy(data.begin() + b, data.begin() + e, buff.begin());
-                        c->send("bulkInsert", buff);
-                    } else {
-                        std::vector<InsertPack> tail_buff(data.begin() + b, data.end());
-                        c->send("bulkInsert", tail_buff);
-                        break;
-                    }
-
-                }
-            }
-        };
-        bulkInsert(pool, pipeline_level);
-//        c->send("bulkInsert", pool);
+//        auto bulkInsert = [&](std::vector<InsertPack> &data, UInt32 pipeline_level_) {
+//            // FIXME
+//            const size_t NUM = 64;
+//            using KBuff = std::array<InsertPack, NUM>;
+//            std::vector<KBuff> buffs(pipeline_level_);
+//            auto unit_size = NUM * pipeline_level_;
+//            auto total_num = data.size();
+//            total_num = total_num / unit_size + (total_num % unit_size != 0);
+//            for (auto i = 0u; i < total_num; ++i) {
+//                for (auto j = 0u; j < pipeline_level_; ++j) {
+//                    auto b = i * unit_size + j * NUM;
+//                    auto e = b + NUM;
+//                    if (e >= data.size()) {
+//                        e = data.size();
+//                    }
+//                    if (e != data.size()) {
+//                        auto &buff = buffs[j];
+//                        // TODO: optimize
+//                        std::copy(data.begin() + b, data.begin() + e, buff.begin());
+//                        c->send("bulkInsert", buff);
+//                    } else {
+//                        std::vector<InsertPack> tail_buff(data.begin() + b, data.end());
+//                        c->send("bulkInsert", tail_buff);
+//                        break;
+//                    }
+//
+//                }
+//                if (i % 1000 == 0)
+//                    c->wait_all_responses();
+//            }
+//        };
+//        bulkInsert(pool, pipeline_level);
+        c->send("bulkInsert", pool);
         pool.clear();
         std::cout << "Flush Pool(" << worker_id << ") [" << w.elapsedMilliseconds() << "ms]\n";
     }
